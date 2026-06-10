@@ -14,6 +14,7 @@ export default function HealingOverlay() {
   const fetchRef = useRef(null);
 
   // Fetch healing data from backend
+  // Inside your HealingOverlay.jsx / .tsx file:
   const fetchHealingData = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/healing`);
@@ -22,6 +23,7 @@ export default function HealingOverlay() {
         setHealing(data.healing);
         setElapsedTime(data.elapsed_time);
         setIsTimerRunning(data.timer_running);
+        setIsEditMode(data.edit_mode); // <-- Syncs React UI lock icon when hotkey is hit!
         setBackendConnected(true);
       }
     } catch (err) {
@@ -150,7 +152,7 @@ export default function HealingOverlay() {
           className="control-button" 
           onMouseDown={(e) => e.stopPropagation()}
           onClick={handleToggleTimer}
-          title="Shift+Plus or click to toggle timer"
+          title="Alt+Plus or click to toggle timer"
         >
           {isTimerRunning ? "⏸ Pause" : "▶ Start"}
         </button>
@@ -159,7 +161,7 @@ export default function HealingOverlay() {
           className="control-button" 
           onMouseDown={(e) => e.stopPropagation()}
           onClick={handleResetStats}
-          title="Shift+Minus or click to reset"
+          title="Alt+Minus or click to reset"
         >
           ⟲ Reset
         </button>
@@ -168,7 +170,7 @@ export default function HealingOverlay() {
           className="lock-toggle" 
           onMouseDown={(e) => e.stopPropagation()}
           onClick={() => setIsEditMode(!isEditMode)}
-          title="Shift+8 or click to toggle"
+          title="Alt+8 or click to toggle"
         >
           {isEditMode ? "🔓" : "🔒"}
         </button>
