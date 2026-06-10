@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Overwolf windows do not use standard mobile viewports, but this ensures safe scaling -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marvel Rivals Healing Tracker</title>
+    <style>
+      /* CRITICAL: Overwolf requires the body to be transparent for the overlay to click-through properly */
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: transparent; 
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Vite injects the compiled React code here -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
