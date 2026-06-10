@@ -1,0 +1,7 @@
+flask==3.0.0
+flask-cors==4.0.0
+opencv-python==4.8.1.78
+numpy==1.26.4
+mss==9.0.1
+keyboard==0.13.5
+pywinrt>=1.0.0

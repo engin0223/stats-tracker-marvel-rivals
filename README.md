@@ -1,33 +1,88 @@
 # Marvel Rivals Healing Tracker
 
-A browser extension/overlay tool for tracking healing in Marvel Rivals, providing real-time healing statistics and performance monitoring during gameplay.
+A real-time healing tracker overlay for Marvel Rivals using Windows OCR and Overwolf, providing live healing statistics during matches.
+
+## Quick Start
+
+**Windows Users:** Double-click `start.bat` to launch everything automatically!
+- Right-click and select "Run as Administrator" for best results (enables hotkeys)
 
 ## Features
 
-- Real-time healing tracking overlay
-- Displays healing statistics during matches
-- Lightweight and non-intrusive overlay design
-- Built with React and Vite for optimal performance
+- 🎮 Real-time healing tracking via Windows OCR
+- 📊 Live HPM (Healing Per Minute) calculation
+- ⌨️ Global hotkeys (Tab to scan, Shift+Plus/Minus for controls)
+- 🎨 Customizable overlay with draggable positioning
+- 🔄 Auto-restarting backend service
+- 🖱️ Click-through transparent overlay when locked
+
+## Installation
+
+### Prerequisites
+- Python 3.8+ (installed and in PATH)
+- Node.js 14+ 
+- Overwolf installed
+- Marvel Rivals installed
+
+### Setup
+
+1. **Install Python dependencies:**
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+2. **Install Node dependencies:**
+   ```powershell
+   npm install
+   ```
+
+3. **Run the app:**
+   - **Easy:** Double-click `start.bat`
+   - **Manual:** Run `npm run backend` in PowerShell, then launch Overwolf
+
+4. **Build for Overwolf:**
+   ```powershell
+   npm run build
+   ```
+
+## How to Use
+
+| Action | Hotkey | Button |
+|--------|--------|--------|
+| Scan healing value | **Tab** | N/A |
+| Start/Pause timer | **Shift+Plus** | ▶ / ⏸ |
+| Reset stats | **Shift+Minus** | ⟲ |
+| Move overlay | Drag | 🔓 unlock first |
+
+**Note:** Hotkeys work best when run as Administrator.
 
 ## Project Structure
 
 ```
 healing_tracker/
+├── backend.py                  # Python OCR backend
+├── launcher.js                 # Node.js backend launcher  
+├── start.bat                   # Windows startup script
 ├── src/
-│   ├── HealingOverlay.jsx      # Main overlay component
-│   ├── HealingOverlay.css      # Overlay styling
-│   └── main.jsx                # React entry point
-├── public/
-│   └── manifest.json           # Extension manifest
-├── background.js               # Background script for extension
-├── index.html                  # HTML entry point
-├── manifest.json               # Extension configuration
-├── package.json                # Project dependencies
-├── vite.config.js              # Vite configuration
-└── README.md                   # This file
+│   ├── HealingOverlay.jsx      # React overlay component
+│   ├── HealingOverlay.css      # Styling
+│   └── main.jsx                # Entry point
+├── dist/                       # Overwolf build
+├── package.json                # Node dependencies
+├── requirements.txt            # Python dependencies
+├── manifest.json               # Overwolf manifest
+├── vite.config.js              # Vite config
+└── SETUP.md                    # Detailed setup guide
 ```
 
-## Installation
+## Configuration
+
+Edit `backend.py` to adjust:
+- Healing box coordinates: `HEALING_BOX`
+- Color detection: `TARGET_COLOR_LOWER/UPPER`
+- Sensitivity: `MIN_COLOR_PIXELS`
+
+See [SETUP.md](SETUP.md) for detailed instructions.
 
 1. Clone or download this repository
 2. Install dependencies:

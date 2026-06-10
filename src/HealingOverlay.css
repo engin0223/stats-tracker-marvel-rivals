@@ -26,6 +26,28 @@
   border: 2px dashed #00FF00;
 }
 
+.backend-status {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 10px;
+}
+
+.status-indicator {
+  color: #00FF00;
+  font-size: 12px;
+}
+
+.status-indicator.error {
+  color: #FF5555;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 49%, 100% { opacity: 1; }
+  50%, 99% { opacity: 0.3; }
+}
+
 .stat-row {
   display: flex;
   justify-content: space-between;
@@ -39,19 +61,51 @@
   color: #00FF00;
 }
 
-.lock-toggle {
-  margin-top: auto;
+.button-group {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.control-button {
   background: #111111;
   border: 1px solid #00FF00;
   color: #00FF00;
   font-size: 11px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   cursor: pointer;
-  align-self: flex-end;
   border-radius: 4px;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.control-button:hover {
+  background: #00FF00;
+  color: #000000;
+}
+
+.control-button:active {
+  background: #00AA00;
+}
+
+.lock-toggle {
+  background: #111111;
+  border: 1px solid #00FF00;
+  color: #00FF00;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-weight: bold;
+  transition: all 0.2s;
 }
 
 .lock-toggle:hover {
   background: #00FF00;
   color: #000000;
+}
+
+.lock-toggle:active {
+  background: #00AA00;
 }
