@@ -10,6 +10,11 @@ export default function HealingOverlay() {
   const timerRef = useRef(null);
 
   useEffect(() => {
+    if (typeof overwolf === 'undefined') {
+      console.warn("Overwolf API not available - running in dev mode");
+      return;
+    }
+
     // Intercept native game info updates broadcasted by Overwolf GEP
     const handleInfoUpdate = (update) => {
       if (update?.info?.match_info?.player_stats) {
@@ -68,6 +73,7 @@ export default function HealingOverlay() {
 
   // Replaces Tkinter manual drag offset mathematics completely
   const handleWindowDrag = () => {
+    if (typeof overwolf === 'undefined') return;
     overwolf.windows.getCurrentWindow((result) => {
       if (result.status === 'success') {
         overwolf.windows.dragMove(result.window.id);
