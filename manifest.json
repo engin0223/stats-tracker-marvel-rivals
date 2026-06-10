@@ -11,6 +11,7 @@
     "icon": "icon.png",
     "icon_gray": "icon_gray.png"
   },
+  "script": "background.js",
   "data": {
     "start_window": "overlay",
     "windows": {
