@@ -17,8 +17,8 @@
     "game_events"
   ],
   "game_events": {
-      "ids": [23600], 
-      "features": ["stats", "match_info"]
+      "ids": [24890], 
+      "features": ["gep_internal", "match_info", "game_info"]
   },
   "data": {
     "start_window": "background",
