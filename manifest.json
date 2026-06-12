@@ -5,43 +5,39 @@
   "meta": {
     "name": "Marvel Rivals Healing Tracker",
     "version": "1.0.0",
+    "description": "Tracks match stats for Marvel Rivals",
     "minimum-overwolf-version": "0.200.0.0",
     "author": "Developer",
-    "description": "Healing tracker overlay for Marvel Rivals",
     "icon": "icon.png",
     "icon_gray": "icon_gray.png"
   },
-  "script": "background.js",
+  "permissions": [
+    "GameInfo",
+    "Hotkeys",
+    "game_events"
+  ],
   "data": {
-    "start_window": "overlay",
+    "start_window": "background",
     "windows": {
+      "background": {
+        "file": "background.html",
+        "is_background_page": true
+      },
       "overlay": {
         "file": "index.html",
         "transparent": true,
         "resizable": false,
         "use_os_windowing": true,
-        "show_in_taskbar": false,
         "size": {
           "width": 300,
-          "height": 150
+          "height": 250
         },
-        "in_game_only": true,
-        "grab_keyboard_focus": false
+        "topmost": true
       }
     },
     "hotkeys": {
-      "toggle_timer": {
-        "title": "Toggle Timer",
-        "action-type": "custom",
-        "default": "Shift+Plus"
-      },
-      "reset_stats": {
-        "title": "Reset Stats",
-        "action-type": "custom",
-        "default": "Shift+Minus"
-      },
       "toggle_edit": {
-        "title": "Toggle Edit Mode",
+        "title": "Toggle Tracker Edit Mode",
         "action-type": "custom",
         "default": "Shift+8"
       }

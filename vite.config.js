@@ -13,6 +13,8 @@ export default defineConfig({
         mkdirSync('dist', { recursive: true })
         copyFileSync('manifest.json', 'dist/manifest.json')
         copyFileSync('background.js', 'dist/background.js')
+        copyFileSync('background.html', 'dist/background.html')
+        copyFileSync('background.js', 'dist/background.js')
       }
     }
   ],

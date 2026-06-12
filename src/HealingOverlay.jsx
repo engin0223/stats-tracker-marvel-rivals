@@ -1,117 +1,88 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import './HealingOverlay.css';
 
-const BACKEND_URL = 'http://localhost:5000/api';
-
-export default function HealingOverlay() {
-  const [healing, setHealing] = useState(0);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
+export default function StatsOverlay() {
+  const [stats, setStats] = useState({ 
+    total_heal: 0, 
+    damage_dealt: 0, 
+    damage_block: 0,
+    accuracy: 0
+  });
+  
+  const [matchTime, setMatchTime] = useState(0); // in seconds
+  const [isMatchActive, setIsMatchActive] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [backendConnected, setBackendConnected] = useState(false);
 
-  const timerRef = useRef(null);
-  const fetchRef = useRef(null);
-
-  // Fetch healing data from backend
-  // Inside your HealingOverlay.jsx / .tsx file:
-  const fetchHealingData = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/healing`);
-      if (response.ok) {
-        const data = await response.json();
-        setHealing(data.healing);
-        setElapsedTime(data.elapsed_time);
-        setIsTimerRunning(data.timer_running);
-        setIsEditMode(data.edit_mode); // <-- Syncs React UI lock icon when hotkey is hit!
-        setBackendConnected(true);
-      }
-    } catch (err) {
-      console.warn("Backend not available - is the Python service running?", err);
-      setBackendConnected(false);
-    }
-  };
-
-  // Toggle timer via backend
-  const handleToggleTimer = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/timer/toggle`, { method: 'POST' });
-      if (response.ok) {
-        const data = await response.json();
-        setIsTimerRunning(data.status === 'running');
-        await fetchHealingData();
-      }
-    } catch (err) {
-      console.error("Error toggling timer:", err);
-    }
-  };
-
-  // Reset stats via backend
-  const handleResetStats = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/stats/reset`, { method: 'POST' });
-      if (response.ok) {
-        await fetchHealingData();
-      }
-    } catch (err) {
-      console.error("Error resetting stats:", err);
-    }
-  };
-
+  // Handle the Match Timer
   useEffect(() => {
-    // Initial data fetch
-    fetchHealingData();
+    let interval = null;
+    if (isMatchActive) {
+      interval = setInterval(() => {
+        setMatchTime(prev => prev + 1);
+      }, 1000);
+    } else if (!isMatchActive && matchTime !== 0) {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [isMatchActive, matchTime]);
 
-    // Setup Overwolf hotkeys if available
+  // Handle Overwolf Messages
+  useEffect(() => {
     if (typeof overwolf !== 'undefined') {
+      
+      const handleMessage = (message) => {
+        
+        // Handle Stat Updates
+        if (message.id === 'stats_update') {
+           const payload = message.content;
+           setStats(prev => ({
+             total_heal: payload.total_heal !== undefined ? payload.total_heal : prev.total_heal,
+             damage_dealt: payload.damage_dealt !== undefined ? payload.damage_dealt : prev.damage_dealt,
+             damage_block: payload.damage_block !== undefined ? payload.damage_block : prev.damage_block,
+             accuracy: payload.accuracy !== undefined ? payload.accuracy : prev.accuracy
+           }));
+        }
+        
+        // Handle Persistent Match State Info
+        if (message.id === 'match_state_update') {
+            const state = message.content;
+            if (state === 'in_progress' || state === 'active') {
+                setIsMatchActive(true);
+            } else if (state === 'ended' || state === 'inactive') {
+                setIsMatchActive(false);
+            }
+        }
+
+        // Handle Triggered Match Events
+        if (message.id === 'match_event') {
+            if (message.content === 'match_start') {
+                setStats({ total_heal: 0, damage_dealt: 0, damage_block: 0, accuracy: 0 });
+                setMatchTime(0);
+                setIsMatchActive(true);
+            } else if (message.content === 'match_end') {
+                setIsMatchActive(false);
+            }
+        }
+      };
+      
+      overwolf.windows.onMessageReceived.addListener(handleMessage);
+
+      // Handle Overlay Move Toggle
       const handleHotkey = (hotkeyEvent) => {
-        if (hotkeyEvent.name === 'toggle_timer') {
-          handleToggleTimer();
-        } else if (hotkeyEvent.name === 'reset_stats') {
-          handleResetStats();
-        } else if (hotkeyEvent.name === 'toggle_edit') {
+        if (hotkeyEvent.name === 'toggle_edit') {
           setIsEditMode(prev => !prev);
         }
       };
 
       overwolf.settings.hotkeys.onPressed.addListener(handleHotkey);
+
       return () => {
+        overwolf.windows.onMessageReceived.removeListener(handleMessage);
         overwolf.settings.hotkeys.onPressed.removeListener(handleHotkey);
       };
     }
   }, []);
 
-  // Continuous polling for backend data
-  useEffect(() => {
-    fetchRef.current = setInterval(() => {
-      fetchHealingData();
-    }, 500); // Poll every 500ms for smooth updates
-
-    return () => clearInterval(fetchRef.current);
-  }, []);
-
-  // Clock progression loop (UI only, actual time comes from backend)
-  useEffect(() => {
-    if (isTimerRunning) {
-      timerRef.current = setInterval(() => {
-        setElapsedTime(prev => prev + 1);
-      }, 1000);
-    } else {
-      clearInterval(timerRef.current);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [isTimerRunning]);
-
-  const minutes = elapsedTime / 60;
-  const hpm = minutes > 0 ? Math.round(healing / minutes) : 0;
-
-  const formatTime = (totalSeconds) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Replaces Tkinter manual drag offset mathematics completely
   const handleWindowDrag = () => {
     if (typeof overwolf === 'undefined') return;
     overwolf.windows.getCurrentWindow((result) => {
@@ -121,56 +92,62 @@ export default function HealingOverlay() {
     });
   };
 
+  // Helper functions for display
+  const formatTime = (totalSeconds) => {
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const getPerMin = (value) => {
+    if (matchTime === 0 || value === 0) return 0;
+    const minutes = matchTime / 60;
+    return Math.round(value / minutes);
+  };
+
   return (
     <div 
       className={`tracker-container ${isEditMode ? 'unlocked' : ''}`}
       onMouseDown={handleWindowDrag}
     >
-      <div className="backend-status">
-        {backendConnected ? (
-          <span className="status-indicator" title="Backend connected">●</span>
-        ) : (
-          <span className="status-indicator error" title="Backend not running">●</span>
-        )}
+      <div className="stat-row timer-row">
+        <span className="label">Match Time:</span> 
+        <span className="value">{formatTime(matchTime)}</span>
       </div>
+      <hr className="divider" />
       
       <div className="stat-row">
         <span className="label">Healing:</span> 
-        <span className="value">{healing.toLocaleString()}</span>
+        <span className="value">
+          {stats.total_heal} <span className="per-min">({getPerMin(stats.total_heal)}/m)</span>
+        </span>
       </div>
+      
       <div className="stat-row">
-        <span className="label">Time:</span> 
-        <span className="value">{formatTime(elapsedTime)}</span>
+        <span className="label">Damage:</span> 
+        <span className="value">
+          {stats.damage_dealt} <span className="per-min">({getPerMin(stats.damage_dealt)}/m)</span>
+        </span>
       </div>
+      
       <div className="stat-row">
-        <span className="label">HPM:</span> 
-        <span className="value">{hpm.toLocaleString()}</span>
+        <span className="label">Blocked:</span> 
+        <span className="value">
+          {stats.damage_block} <span className="per-min">({getPerMin(stats.damage_block)}/m)</span>
+        </span>
+      </div>
+
+      <div className="stat-row">
+        <span className="label">Accuracy:</span> 
+        <span className="value">{stats.accuracy}%</span>
       </div>
       
       <div className="button-group">
         <button 
-          className="control-button" 
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={handleToggleTimer}
-          title="Alt+Plus or click to toggle timer"
-        >
-          {isTimerRunning ? "⏸ Pause" : "▶ Start"}
-        </button>
-        
-        <button 
-          className="control-button" 
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={handleResetStats}
-          title="Alt+Minus or click to reset"
-        >
-          ⟲ Reset
-        </button>
-        
-        <button 
           className="lock-toggle" 
           onMouseDown={(e) => e.stopPropagation()}
           onClick={() => setIsEditMode(!isEditMode)}
-          title="Alt+8 or click to toggle"
+          title="Shift+8 or click to toggle move"
         >
           {isEditMode ? "🔓" : "🔒"}
         </button>
