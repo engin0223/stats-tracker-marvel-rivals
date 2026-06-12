@@ -16,6 +16,10 @@
     "Hotkeys",
     "game_events"
   ],
+  "game_events": {
+      "ids": [23600], 
+      "features": ["stats", "match_info"]
+  },
   "data": {
     "start_window": "background",
     "windows": {

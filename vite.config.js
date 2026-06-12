@@ -4,6 +4,7 @@ import { copyFileSync, mkdirSync } from 'fs'
 import { resolve } from 'path'
 
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
     {
@@ -14,7 +15,6 @@ export default defineConfig({
         copyFileSync('manifest.json', 'dist/manifest.json')
         copyFileSync('background.js', 'dist/background.js')
         copyFileSync('background.html', 'dist/background.html')
-        copyFileSync('background.js', 'dist/background.js')
       }
     }
   ],
