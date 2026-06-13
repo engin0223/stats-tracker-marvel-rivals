@@ -20,6 +20,13 @@
       "ids": [24890], 
       "features": ["gep_internal", "match_info", "game_info"]
   },
+  "hotkeys": {
+    "toggle_edit": {
+      "title": "Toggle Tracker Edit Mode",
+      "action-type": "custom",
+      "default": "Shift+8"
+    }
+  },
   "data": {
     "start_window": "background",
     "windows": {
@@ -37,13 +44,6 @@
           "height": 250
         },
         "topmost": true
-      }
-    },
-    "hotkeys": {
-      "toggle_edit": {
-        "title": "Toggle Tracker Edit Mode",
-        "action-type": "custom",
-        "default": "Shift+8"
       }
     }
   }

@@ -12,6 +12,28 @@ export default function StatsOverlay() {
   const [matchTime, setMatchTime] = useState(0); // in seconds
   const [isMatchActive, setIsMatchActive] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isOverlayVisible, setIsOverlayVisible] = useState(false);
+
+  useEffect(() => {
+        // The listener that catches the ping from background.js
+        const handleMessage = (message) => {
+            if (message.id === "show_overlay") {
+                setIsOverlayVisible(true);
+            } else if (message.id === "hide_overlay") {
+                setIsOverlayVisible(false);
+            } else if (message.id === "toggle_edit") {
+                setIsEditMode((prev) => !prev);
+            }
+        };
+
+        // Attach the listener
+        overwolf.windows.onMessageReceived.addListener(handleMessage);
+
+        // Cleanup the listener on unmount
+        return () => {
+            overwolf.windows.onMessageReceived.removeListener(handleMessage);
+        };
+    }, []);
 
   // Handle the Match Timer
   useEffect(() => {
@@ -108,6 +130,7 @@ export default function StatsOverlay() {
   return (
     <div 
       className={`tracker-container ${isEditMode ? 'unlocked' : ''}`}
+      style={{ display: isOverlayVisible ? 'block' : 'none' }}
       onMouseDown={handleWindowDrag}
     >
       <div className="stat-row timer-row">
@@ -118,21 +141,21 @@ export default function StatsOverlay() {
       <div className="stat-row">
         <span className="label">Healing:</span> 
         <span className="value">
-          {stats.total_heal} <span className="per-min">({getPerMin(stats.total_heal)}/m)</span>
+          {stats.total_heal} <span className="per-min">({getPerMin(stats.total_heal)} /minute)</span>
         </span>
       </div>
       
       <div className="stat-row">
         <span className="label">Damage:</span> 
         <span className="value">
-          {stats.damage_dealt} <span className="per-min">({getPerMin(stats.damage_dealt)}/m)</span>
+          {stats.damage_dealt} <span className="per-min">({getPerMin(stats.damage_dealt)} /minute)</span>
         </span>
       </div>
       
       <div className="stat-row">
         <span className="label">Blocked:</span> 
         <span className="value">
-          {stats.damage_block} <span className="per-min">({getPerMin(stats.damage_block)}/m)</span>
+          {stats.damage_block} <span className="per-min">({getPerMin(stats.damage_block)} /minute)</span>
         </span>
       </div>
 
@@ -140,17 +163,7 @@ export default function StatsOverlay() {
         <span className="label">Accuracy:</span> 
         <span className="value">{stats.accuracy}%</span>
       </div>
-      
-      <div className="button-group">
-        <button 
-          className="lock-toggle" 
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={() => setIsEditMode(!isEditMode)}
-          title="Shift+8 or click to toggle move"
-        >
-          {isEditMode ? "🔓" : "🔒"}
-        </button>
-      </div>
+
     </div>
   );
 }

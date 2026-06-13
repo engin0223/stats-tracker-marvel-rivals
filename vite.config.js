@@ -15,6 +15,7 @@ export default defineConfig({
         copyFileSync('manifest.json', 'dist/manifest.json')
         copyFileSync('background.js', 'dist/background.js')
         copyFileSync('background.html', 'dist/background.html')
+        copyFileSync('manifest.json', 'public/manifest.json')
       }
     }
   ],

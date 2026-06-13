@@ -1,137 +1,103 @@
-# Marvel Rivals Healing Tracker
+# Marvel Rivals Stats Tracker Overlay
 
-A real-time healing tracker overlay for Marvel Rivals using Windows OCR and Overwolf, providing live healing statistics during matches.
+A real-time stats tracker overlay for Marvel Rivals built on the Overwolf platform, providing live healing, damage, mitigation, and accuracy statistics automatically during matches.
 
-## Quick Start
-
-**Windows Users:** Double-click `start.bat` to launch everything automatically!
-- Right-click and select "Run as Administrator" for best results (enables hotkeys)
+> **⚠️ Disclaimer:** This application is currently in very early development. It is planned to be released publicly once development finishes. Please note that by using this early build, the user assumes full responsibility for any problems or issues that may occur.
 
 ## Features
 
-- 🎮 Real-time healing tracking via Windows OCR
-- 📊 Live HPM (Healing Per Minute) calculation
-- ⌨️ Global hotkeys (Tab to scan, Shift+Plus/Minus for controls)
-- 🎨 Customizable overlay with draggable positioning
-- 🔄 Auto-restarting backend service
-- 🖱️ Click-through transparent overlay when locked
+- 🎮 **Automatic Tracking:** Real-time stat tracking via Overwolf Game Events (no manual scanning required).
+- 📊 **Live Analytics:** Calculates live Per-Minute stats (Healing/Damage/Blocked per minute).
+- 🎨 **Customizable Overlay:** Draggable, transparent overlay that sits neatly on your screen.
+- ⏱️ **Auto Match Timer:** Automatically detects match start/end and tracks match duration.
+- 🖱️ **Click-Through:** Fully transparent and non-intrusive when locked.
 
-## Installation
+## Prerequisites
 
-### Prerequisites
-- Python 3.8+ (installed and in PATH)
-- Node.js 14+ 
-- Overwolf installed
+- Node.js 18+ (for building the project)
+- [Overwolf Client](https://www.overwolf.com/) installed
 - Marvel Rivals installed
 
-### Setup
+## Installation & Setup
 
-1. **Install Python dependencies:**
-   ```powershell
-   pip install -r requirements.txt
-   ```
+1. **Clone the repository:**
+```bash
+   git clone <your-repo-url>
+   cd healing_tracker
 
-2. **Install Node dependencies:**
-   ```powershell
+```
+
+2. **Install dependencies:**
+
+```bash
    npm install
-   ```
 
-3. **Run the app:**
-   - **Easy:** Double-click `start.bat`
-   - **Manual:** Run `npm run backend` in PowerShell, then launch Overwolf
+```
 
-4. **Build for Overwolf:**
-   ```powershell
+3. **Build the Overwolf extension:**
+
+```bash
    npm run build
-   ```
+
+```
+
+*This will compile the React app and copy the necessary Overwolf files (`manifest.json`, `background.js`, `background.html`) into the `dist/` folder.*
+
+4. **Load into Overwolf:**
+* Open Overwolf settings.
+* Go to **About** -> **Development Options**.
+* Click **Load unpacked extension...**
+* Select the `dist/` folder generated in step 3.
+
+
 
 ## How to Use
 
-| Action | Hotkey | Button |
-|--------|--------|--------|
-| Scan healing value | **Tab** | N/A |
-| Start/Pause timer | **Shift+Plus** | ▶ / ⏸ |
-| Reset stats | **Shift+Minus** | ⟲ |
-| Move overlay | Drag | 🔓 unlock first |
+Once the app is loaded and enabled in Overwolf:
 
-**Note:** Hotkeys work best when run as Administrator.
+1. Launch **Marvel Rivals**.
+2. The background service will automatically detect the game and open the overlay.
+3. The tracker will automatically reset and start tracking your stats as soon as you enter an active match.
+
+### Controls / Hotkeys
+
+| Action | Default Hotkey | Button |
+| --- | --- | --- |
+| Toggle Edit/Move Mode | **Shift+8** | 🔓 / 🔒 |
+| Move Overlay | **Drag** | *Requires Unlock first* |
+
+*Note: You can change this hotkey at any time in your Overwolf settings.*
 
 ## Project Structure
 
 ```
 healing_tracker/
-├── backend.py                  # Python OCR backend
-├── launcher.js                 # Node.js backend launcher  
-├── start.bat                   # Windows startup script
+├── background.js               # Overwolf background event controller (GEP integration)
+├── background.html             # Background process host
+├── manifest.json               # Overwolf extension manifest
 ├── src/
-│   ├── HealingOverlay.jsx      # React overlay component
-│   ├── HealingOverlay.css      # Styling
-│   └── main.jsx                # Entry point
-├── dist/                       # Overwolf build
-├── package.json                # Node dependencies
-├── requirements.txt            # Python dependencies
-├── manifest.json               # Overwolf manifest
-├── vite.config.js              # Vite config
-└── SETUP.md                    # Detailed setup guide
+│   ├── HealingOverlay.jsx      # React overlay component (UI and logic)
+│   ├── HealingOverlay.css      # Styling for the overlay
+│   └── main.jsx                # React entry point
+├── public/                     # Icons and static assets
+├── package.json                # Node dependencies and scripts
+└── vite.config.js              # Vite bundler configuration
+
 ```
-
-## Configuration
-
-Edit `backend.py` to adjust:
-- Healing box coordinates: `HEALING_BOX`
-- Color detection: `TARGET_COLOR_LOWER/UPPER`
-- Sensitivity: `MIN_COLOR_PIXELS`
-
-See [SETUP.md](SETUP.md) for detailed instructions.
-
-1. Clone or download this repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Build the project:
-   ```bash
-   npm run build
-   ```
 
 ## Development
 
-To start the development server:
+To start the development server for UI testing (outside of Overwolf):
 
 ```bash
 npm run dev
+
 ```
 
-This will build and watch for changes using Vite.
-
-## Building for Distribution
-
-To create an optimized production build:
-
-```bash
-npm run build
-```
-
-The built files will be ready for distribution as a browser extension or web application.
-
-## Usage
-
-1. Load the extension in your browser (steps vary by browser)
-2. Launch Marvel Rivals
-3. The healing tracker overlay will appear during matches
-4. Monitor your healing statistics in real-time
+*Note: Overwolf APIs (`overwolf.games.events`, etc.) will not be available in a standard web browser, but you can build and style the UI components.*
 
 ## Technologies Used
 
-- **React** - UI component framework
-- **Vite** - Build tool and dev server
-- **CSS3** - Styling for the overlay
-
-## License
-
-[Add your license information here]
-
-## Contributing
-
-Contributions are welcome! Feel free to submit issues and pull requests.
+* **React** - UI component framework
+* **Vite** - Lightning-fast build tool
+* **Overwolf API** - Native game events and window management
