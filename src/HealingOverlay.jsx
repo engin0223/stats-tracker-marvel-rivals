@@ -114,7 +114,6 @@ export default function StatsOverlay() {
         <span className="label">Match Time:</span> 
         <span className="value">{formatTime(matchTime)}</span>
       </div>
-      <hr className="divider" />
       
       <div className="stat-row">
         <span className="label">Healing:</span> 

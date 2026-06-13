@@ -1,13 +1,26 @@
-const MARVEL_RIVALS_ID = 24890;
-const REGISTER_FEATURES = ['match_info', 'game_info', 'gep_internal'];
+const MARVEL_RIVALS_ID   = 24890;
+const REGISTER_FEATURES  = ['match_info', 'game_info', 'gep_internal'];
+const POLL_INTERVAL_MS   = 1000;   // How often getInfo is called (ms)
+const REGISTER_RETRY_MS  = 2000;   // Retry delay if setRequiredFeatures fails (ms)
+const REGISTER_MAX_TRIES = 10;     // Give up after this many attempts
 
+// ─── State ────────────────────────────────────────────────────────────────────
+let pollInterval        = null;
+let prevPlayerStatsStr  = null;
+let prevMatchState      = null;
+let prevScene           = null;
+let prevMatchId         = null;
+let prevMatchOutcome    = null;
+let inMatch             = false;
+let registerAttempts    = 0;
+
+// ─── Overlay Window Helpers ───────────────────────────────────────────────────
 function openOverlayWindow() {
-  console.log('[Overlay] Requesting overlay window open...');
+  console.log('[Overlay] Opening overlay...');
   overwolf.windows.obtainDeclaredWindow('overlay', (result) => {
     if (result.status === 'success') {
-      console.log(`[Overlay] Restoring window id=${result.window.id}`);
       overwolf.windows.restore(result.window.id, () => {
-        console.log(`[Overlay] Window restored id=${result.window.id}`);
+        console.log(`[Overlay] Restored — id=${result.window.id}`);
       });
     } else {
       console.error('[Overlay] obtainDeclaredWindow failed:', result);
@@ -16,10 +29,9 @@ function openOverlayWindow() {
 }
 
 function closeOverlayWindow() {
-  console.log('[Overlay] Requesting overlay window close...');
+  console.log('[Overlay] Closing overlay...');
   overwolf.windows.obtainDeclaredWindow('overlay', (result) => {
     if (result.status === 'success') {
-      console.log(`[Overlay] Closing window id=${result.window.id}`);
       overwolf.windows.close(result.window.id);
     } else {
       console.error('[Overlay] obtainDeclaredWindow (close) failed:', result);
@@ -27,170 +39,201 @@ function closeOverlayWindow() {
   });
 }
 
-// --- 1. Define and Setup Listeners Globally ---
-let listenersRegistered = false;
+// ─── Messaging Helper ─────────────────────────────────────────────────────────
+function sendToOverlay(messageId, data) {
+  overwolf.windows.obtainDeclaredWindow('overlay', (res) => {
+    if (res.status === 'success') {
+      overwolf.windows.sendMessage(res.window.id, messageId, data, () => {});
+    } else {
+      console.error(`[Msg] Failed to obtain overlay for messageId='${messageId}':`, res);
+    }
+  });
+}
 
-function setupEventListeners() {
-  if (listenersRegistered) return;
-  
-  console.log('[GEP] Setting up onInfoUpdates2 and onNewEvents listeners...');
-
-  // Listen for Info Updates
-  overwolf.games.events.onInfoUpdates2.addListener((info) => {
-    console.log('[GEP] onInfoUpdates2 fired. feature=' + info.feature, info);
-
-    // Grab player_stats whether they arrive under match_info or standalone stats
-    let rawStats = null;
-    
-    if (info.feature === "match_info" && info.info.match_info && info.info.match_info.player_stats) {
-        rawStats = info.info.match_info.player_stats;
-    } else if (info.feature === "stats" && info.info.stats) {
-        rawStats = info.info.stats;
-    } else if (info.info.game_info && info.info.game_info.player_stats) {
-        rawStats = info.info.game_info.player_stats;
+// ─── Core Poll Function ───────────────────────────────────────────────────────
+function pollGameInfo() {
+  overwolf.games.events.getInfo((result) => {
+    if (!result || result.status !== 'success' || !result.res) {
+      console.warn('[Poll] getInfo returned no valid data:', result);
+      return;
     }
 
-    // If we found stats in this update, parse and forward them
-    if (rawStats !== null && rawStats !== undefined) {
-      console.log('[GEP] player_stats live update received:', rawStats);
-      try {
-        const stats = typeof rawStats === 'string' ? JSON.parse(rawStats) : rawStats;
-        overwolf.windows.obtainDeclaredWindow('overlay', (res) => {
-          if (res.status === 'success') {
-            overwolf.windows.sendMessage(res.window.id, 'stats_update', stats, () => {});
-          }
-        });
-      } catch (e) {
-        console.error('[GEP] Failed to parse live player_stats:', e);
+    const { game_info, match_info } = result.res;
+
+    // ── Scene (Lobby / Ingame) ────────────────────────────────────────────────
+    if (game_info && game_info.scene && game_info.scene !== prevScene) {
+      console.log(`[Poll] Scene: ${prevScene} → ${game_info.scene}`);
+      prevScene = game_info.scene;
+      sendToOverlay('scene_update', game_info.scene);
+      if (game_info.scene === 'Lobby') {
+        // Reset match-related state when returning to lobby
+        prevMatchId        = null;
+        prevPlayerStatsStr = null;
+        prevMatchState     = null;
+        prevMatchOutcome   = null;
+        inMatch            = false;
+        sendToOverlay('match_event', 'match_end');
+      } else if (game_info.scene === 'Ingame') {
+        // Clear stats when entering a match scene (in case match_id doesn't update immediately)
+        prevPlayerStatsStr = null;
+        sendToOverlay('stats_update', { total_heal: 0, damage_dealt: 0, damage_block: 0, accuracy: 0 });
+        sendToOverlay('match_event', 'match_start');
       }
     }
 
-    // Forward Match State (Separated from stats)
-    if (info.feature === "match_info" && info.info.match_info && info.info.match_info.match_state) {
-      console.log('[GEP] match_state live update received:', info.info.match_info.match_state);
-      overwolf.windows.obtainDeclaredWindow('overlay', (res) => {
-        if (res.status === 'success') {
-          overwolf.windows.sendMessage(res.window.id, 'match_state_update', info.info.match_info.match_state, () => {});
+    // ── Match Lifecycle — driven by match_id appearing / disappearing ─────────
+    const currentMatchId = (match_info && match_info.match_id) ? match_info.match_id : null;
+
+    if (currentMatchId !== prevMatchId) {
+      if (currentMatchId && !prevMatchId) {
+        // Fresh match started
+        console.log('[Poll] match_start — match_id:', currentMatchId);
+        inMatch            = true;
+        prevPlayerStatsStr = null;
+        prevMatchState     = null;
+        prevMatchOutcome   = null;
+        sendToOverlay('match_event', 'match_start');
+
+      } else if (!currentMatchId && prevMatchId) {
+        // match_id cleared → match over
+        console.log('[Poll] match_end — match_id gone');
+        inMatch = false;
+        sendToOverlay('match_event', 'match_end');
+
+      } else if (currentMatchId && prevMatchId) {
+        // match_id swapped without clearing (back-to-back matches)
+        console.log('[Poll] Match ID rotated:', prevMatchId, '→', currentMatchId);
+        sendToOverlay('match_event', 'match_end');
+        inMatch            = true;
+        prevPlayerStatsStr = null;
+        prevMatchState     = null;
+        prevMatchOutcome   = null;
+        sendToOverlay('match_event', 'match_start');
+      }
+
+      prevMatchId = currentMatchId;
+    }
+
+    // Nothing else to check if match_info isn't present
+    if (!match_info) return;
+
+    // ── Player Stats ──────────────────────────────────────────────────────────
+    const rawStats = match_info.player_stats;
+    if (rawStats !== undefined && rawStats !== null) {
+      const statsStr = typeof rawStats === 'string' ? rawStats : JSON.stringify(rawStats);
+
+      if (statsStr !== prevPlayerStatsStr) {
+        prevPlayerStatsStr = statsStr;
+        try {
+          const stats = typeof rawStats === 'string' ? JSON.parse(rawStats) : rawStats;
+          console.log('[Poll] player_stats updated:', stats);
+          sendToOverlay('stats_update', stats);
+        } catch (e) {
+          console.error('[Poll] Failed to parse player_stats:', e);
         }
-      });
+      }
+    }
+
+    // ── Match State ───────────────────────────────────────────────────────────
+    if (match_info.match_state !== undefined && match_info.match_state !== prevMatchState) {
+      prevMatchState = match_info.match_state;
+      console.log('[Poll] match_state updated:', match_info.match_state);
+      sendToOverlay('match_state_update', match_info.match_state);
+    }
+
+    // ── Match Outcome (Victory / Defeat / Draw) ───────────────────────────────
+    if (match_info.match_outcome && match_info.match_outcome !== prevMatchOutcome) {
+      prevMatchOutcome = match_info.match_outcome;
+      console.log('[Poll] match_outcome:', match_info.match_outcome);
+      sendToOverlay('match_outcome', match_info.match_outcome);
     }
   });
-
-  // Listen for Triggered Events
-  overwolf.games.events.onNewEvents.addListener((info) => {
-    console.log('[GEP] onNewEvents fired:', info.events);
-    const matchEvents = info.events.filter(e => e.name === 'match_start' || e.name === 'match_end');
-    console.log('[GEP] Relevant match events:', matchEvents);
-    
-    matchEvents.forEach(event => {
-      console.log(`[GEP] Handling match event: ${event.name}`);
-      overwolf.windows.obtainDeclaredWindow('overlay', (res) => {
-        if (res.status === 'success') {
-          console.log(`[GEP] Sending match_event '${event.name}' to overlay window id=${res.window.id}`);
-          overwolf.windows.sendMessage(res.window.id, 'match_event', event.name, () => {
-            console.log(`[GEP] match_event '${event.name}' message sent.`);
-          });
-        } else {
-          console.error(`[GEP] obtainDeclaredWindow (match_event '${event.name}') failed:`, res);
-        }
-      });
-    });
-  });
-
-  listenersRegistered = true;
-  console.log('[GEP] Listeners registered.');
 }
 
-// --- 2. Register Features ---
+// ─── Polling Control ──────────────────────────────────────────────────────────
+function startPolling() {
+  if (pollInterval) {
+    console.log('[Poll] Already running, skipping start.');
+    return;
+  }
+  console.log(`[Poll] Starting — interval ${POLL_INTERVAL_MS}ms`);
+  pollGameInfo();                                           // Immediate first call
+  pollInterval = setInterval(pollGameInfo, POLL_INTERVAL_MS);
+}
+
+function stopPolling() {
+  if (!pollInterval) return;
+  clearInterval(pollInterval);
+  pollInterval = null;
+
+  // Reset all tracked state so a fresh game session starts clean
+  prevPlayerStatsStr = null;
+  prevMatchState     = null;
+  prevScene          = null;
+  prevMatchId        = null;
+  prevMatchOutcome   = null;
+  inMatch            = false;
+  registerAttempts   = 0;
+
+  console.log('[Poll] Stopped — state reset.');
+}
+
+// ─── Feature Registration (with auto-retry) ───────────────────────────────────
 function registerFeatures() {
-  console.log('[GEP] Registering features:', REGISTER_FEATURES);
+  if (registerAttempts >= REGISTER_MAX_TRIES) {
+    console.error(`[GEP] Giving up after ${REGISTER_MAX_TRIES} registration attempts.`);
+    return;
+  }
+
+  registerAttempts++;
+  console.log(`[GEP] Registering features (attempt ${registerAttempts}):`, REGISTER_FEATURES);
+
   overwolf.games.events.setRequiredFeatures(REGISTER_FEATURES, (result) => {
     if (result.status === 'success' || result.success) {
       console.log('[GEP] Registration succeeded. Supported features:', result.supportedFeatures);
-
-      setupEventListeners();
-
-      // Fetch immediate info in case app started mid-match
-      console.log('[GEP] Fetching current game info (mid-match check)...');
-      overwolf.games.events.getInfo((info) => {
-        console.log('[GEP] getInfo response:', info);
-        if (info && info.res && info.res.match_info) {
-          const matchInfo = info.res.match_info;
-          console.log('[GEP] Mid-match state detected. match_info:', matchInfo);
-
-          overwolf.windows.obtainDeclaredWindow('overlay', (res) => {
-            if (res.status === 'success') {
-              // Send current match state
-              if (matchInfo.match_state) {
-                console.log('[GEP] Sending initial match_state to overlay:', matchInfo.match_state);
-                overwolf.windows.sendMessage(res.window.id, 'match_state_update', matchInfo.match_state, () => {
-                  console.log('[GEP] match_state_update message sent.');
-                });
-              } else {
-                console.log('[GEP] No match_state in current info, skipping.');
-              }
-              // Send current player stats
-              if (matchInfo.player_stats != null) {
-                console.log('[GEP] Sending initial player_stats to overlay (raw):', matchInfo.player_stats);
-                try {
-                  const statsStr = matchInfo.player_stats;
-                  const stats = typeof statsStr === 'string' ? JSON.parse(statsStr) : statsStr;
-                  console.log('[GEP] Parsed initial player_stats:', stats);
-                  overwolf.windows.sendMessage(res.window.id, 'stats_update', stats, () => {
-                    console.log('[GEP] stats_update message sent.');
-                  });
-                } catch(e) {
-                  console.error('[GEP] Failed to parse initial player_stats:', e, matchInfo.player_stats);
-                }
-              } else {
-                console.log('[GEP] No player_stats in current info, skipping.');
-              }
-            } else {
-              console.error('[GEP] obtainDeclaredWindow (mid-match) failed:', res);
-            }
-          });
-        } else {
-          console.log('[GEP] No mid-match data found (app started outside a match).');
-        }
-      });
+      registerAttempts = 0;
+      startPolling();
     } else {
-      console.warn('[GEP] Registration failed (game pipeline may still be loading), retrying in 2s...', result);
-      setTimeout(registerFeatures, 2000);
+      console.warn(`[GEP] Registration failed (attempt ${registerAttempts}), retrying in ${REGISTER_RETRY_MS}ms:`, result);
+      setTimeout(registerFeatures, REGISTER_RETRY_MS);
     }
   });
 }
 
-// --- 3. App Lifecycle Hooks ---
+// ─── App Lifecycle ────────────────────────────────────────────────────────────
 console.log('[App] Checking for running game on startup...');
 overwolf.games.getRunningGameInfo((gameInfo) => {
   console.log('[App] getRunningGameInfo result:', gameInfo);
   if (gameInfo && gameInfo.isRunning && gameInfo.classId === MARVEL_RIVALS_ID) {
-    console.log(`[App] Marvel Rivals already running (classId=${gameInfo.classId}). Opening overlay and registering features.`);
+    console.log(`[App] Marvel Rivals already running — opening overlay & registering features.`);
     openOverlayWindow();
     registerFeatures();
   } else {
-    console.log('[App] Marvel Rivals not currently running.', gameInfo);
+    console.log('[App] Marvel Rivals not currently running.');
   }
 });
 
 console.log('[App] Registering onGameInfoUpdated listener...');
 overwolf.games.onGameInfoUpdated.addListener((event) => {
   console.log('[App] onGameInfoUpdated fired:', event);
-  if (event && event.runningChanged && event.gameInfo) {
-    console.log(`[App] Running state changed. classId=${event.gameInfo.classId}, isRunning=${event.gameInfo.isRunning}`);
-    if (event.gameInfo.classId === MARVEL_RIVALS_ID) {
-      if (event.gameInfo.isRunning) {
-        console.log('[App] Marvel Rivals launched. Opening overlay and registering features.');
-        openOverlayWindow();
-        registerFeatures();
-      } else {
-        console.log('[App] Marvel Rivals exited. Closing overlay.');
-        closeOverlayWindow();
-      }
-    } else {
-      console.log(`[App] Ignored game update for classId=${event.gameInfo.classId} (not Marvel Rivals).`);
-    }
+
+  if (!event || !event.runningChanged || !event.gameInfo) {
+    console.log('[App] No running-state change — skipping.');
+    return;
+  }
+
+  if (event.gameInfo.classId !== MARVEL_RIVALS_ID) {
+    console.log(`[App] Ignored — classId ${event.gameInfo.classId} is not Marvel Rivals.`);
+    return;
+  }
+
+  if (event.gameInfo.isRunning) {
+    console.log('[App] Marvel Rivals launched — opening overlay & registering features.');
+    openOverlayWindow();
+    registerFeatures();
   } else {
-    console.log('[App] onGameInfoUpdated: no running state change, skipping.');
+    console.log('[App] Marvel Rivals exited — closing overlay & stopping polling.');
+    closeOverlayWindow();
+    stopPolling();
   }
 });
